@@ -6,9 +6,29 @@ import path from "node:path";
 const RETRY_DELAYS_MS = [2_000, 5_000, 10_000, 20_000, 40_000, 60_000, 90_000, 120_000];
 const MIN_VALID_FILE_SIZE = 1_024;
 
-export const USER_AGENT =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36";
+// Platforms gate anonymous access on the browser fingerprint. Keep the
+// advertised platform in step with the machine actually running the browser so
+// the user agent, the rendering engine and the client hints agree; only the
+// Chrome major version should track the real binary.
+const UA_PLATFORM = process.platform === "win32"
+  ? "Windows NT 10.0; Win64; x64"
+  : process.platform === "linux"
+    ? "X11; Linux x86_64"
+    : "Macintosh; Intel Mac OS X 10_15_7";
+
+// Xiaohongshu answers share links from Chromium below this major with a login
+// redirect, which leaves the page without note data.
+export const MIN_ANONYMOUS_CHROME_MAJOR = 156;
+
+export function buildUserAgent(chromeVersion = null) {
+  const major = String(chromeVersion ?? "").split(".")[0];
+  const version = /^\d+$/.test(major) ? major : String(MIN_ANONYMOUS_CHROME_MAJOR);
+  return `Mozilla/5.0 (${UA_PLATFORM}) AppleWebKit/537.36 ` +
+    `(KHTML, like Gecko) Chrome/${version}.0.0.0 Safari/537.36`;
+}
+
+// Fallback for callers without a launched browser (plain HTTP fetches).
+export const USER_AGENT = buildUserAgent();
 
 export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

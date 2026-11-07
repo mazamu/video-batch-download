@@ -79,7 +79,16 @@ Douyin increasingly serves the page player DASH fragments (`media-video-*` plus 
 
 ## A share or discovery URL opens a login wall
 
-Xiaohongshu serves `/discovery/item/<id>` and `/note/<id>` share links to some browser fingerprints with a redirect to `/login?redirectPath=...`, which leaves the page with no note data and surfaces `MEDIA_DISCOVERY_FAILED`. Two things matter here: the shared URL is rewritten to `/explore/<id>` before navigation so the note stays reachable anonymously, and the browser context must present a reasonably current desktop Chrome user agent. A stale user agent is the usual cause of the login wall; update `USER_AGENT` in `scripts/utils/common.js` rather than adding a login state.
+Xiaohongshu serves `/discovery/item/<id>` and `/note/<id>` share links to some browser fingerprints with a redirect to `/login?redirectPath=...`, which leaves the page with no note data. The share URL is rewritten to `/explore/<id>` before navigation so the note stays reachable anonymously.
+
+The remaining gate is the **Chrome major version**, not the operating system: the same link is walled at Chromium 131 and 149 and served normally at 156+, on every platform. The user agent is therefore built from the version of the browser actually launched (`buildUserAgent` in `scripts/utils/common.js`) while keeping the host platform in the string, so the fingerprint stays self-consistent on Windows, macOS and Linux. This needs `playwright >= 1.64`, whose bundled Chromium is 156. When the wall is still hit, the item fails with `ACCESS_LOGIN_REQUIRED` and a suggestion instead of an empty retry loop, so either upgrade playwright or pass `--storage-state`.
+
+## Windows notes
+
+- ffmpeg and ffprobe must be on `PATH`, or point at them with `--ffmpeg-path`. The transcription server receives that path as well; without it, it looks for `FFMPEG_PATH` and then `ffmpeg` on `PATH`.
+- The ffmpeg decode used before transcription runs with `CREATE_NO_WINDOW`, so no console window flashes during a batch.
+- Use a `python` or `py` launcher on `PATH`; the client probes both before `python3`.
+
 
 ## Transcription fails with an unexpected `metadata_errors` argument
 

@@ -1,7 +1,7 @@
 import { chromium } from "playwright";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
-import { settleWithin, USER_AGENT } from "./common.js";
+import { buildUserAgent, settleWithin } from "./common.js";
 
 function forceKillTree(pid) {
   if (!pid) return;
@@ -78,6 +78,6 @@ export class BrowserManager {
   }
 
   getUserAgent() {
-    return USER_AGENT;
+    return buildUserAgent(this.browser?.version?.());
   }
 }

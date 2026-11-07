@@ -25,6 +25,8 @@ node scripts/setup.mjs
 
 `setup.mjs` verifies Playwright and installs Chromium only when needed.
 
+Playwright 1.64 or newer is required: its bundled Chromium is the oldest build Xiaohongshu still serves share links to anonymously. An older Chromium is redirected to a login wall and the item fails with `ACCESS_LOGIN_REQUIRED`.
+
 ### Python dependencies (for transcription)
 
 ```bash

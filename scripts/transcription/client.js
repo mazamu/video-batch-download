@@ -66,12 +66,18 @@ export class TranscriptionClient {
         lastErr = probe.error ?? new Error(`${pyExe} --version exited ${probe.status}`);
         continue;
       }
-      proc = this.spawn(pyExe, [
+      const serverArgs = [
         serverPath,
         "--model", this.activeOptions.model,
         "--device", this.activeOptions.device,
         "--compute-type", this.activeOptions.computeType,
-      ], {
+      ];
+      // ffmpeg is not necessarily on PATH (bundled builds, Windows installs),
+      // so hand the resolved path to the server instead of letting it guess.
+      if (this.activeOptions.ffmpegPath) {
+        serverArgs.push("--ffmpeg-path", this.activeOptions.ffmpegPath);
+      }
+      proc = this.spawn(pyExe, serverArgs, {
         stdio: ["pipe", "pipe", "pipe"],
         cwd: scriptsDir,
         env: { ...process.env, PYTHONIOENCODING: "utf-8" },

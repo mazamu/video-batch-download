@@ -51,7 +51,7 @@ def load_whisper(model_name: str, device: str, compute_type: str):
     return WhisperModel(model_name, device=device, compute_type=compute_type)
 
 
-def _decode_audio(audio_path, sampling_rate: int = 16000):
+def _decode_audio(audio_path, sampling_rate: int = 16000, ffmpeg_path: str | None = None):
     """Decode media to a float32 mono array using ffmpeg.
 
     faster-whisper decodes file paths through PyAV, and PyAV 19 removed the
@@ -60,26 +60,35 @@ def _decode_audio(audio_path, sampling_rate: int = 16000):
     Decoding here keeps the skill working on any PyAV version and matches the
     sample rate faster-whisper expects internally.
     """
+    import shutil
     import subprocess
 
     import numpy as np
 
-    exe = os.environ.get("FFMPEG_PATH", "ffmpeg")
+    exe = ffmpeg_path or os.environ.get("FFMPEG_PATH") or "ffmpeg"
+    if not Path(exe).is_file() and shutil.which(exe) is None:
+        raise RuntimeError(f"ffmpeg not found (tried: {exe})")
     cmd = [
         exe, "-nostdin", "-v", "error",
         "-i", str(audio_path),
         "-f", "f32le", "-ac", "1", "-ar", str(sampling_rate), "-",
     ]
-    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        # Keep the child from flashing a console window on Windows.
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
     if proc.returncode != 0 or not proc.stdout:
         message = proc.stderr.decode("utf-8", "ignore").strip() or "ffmpeg produced no audio"
         raise RuntimeError(message)
     return np.frombuffer(proc.stdout, dtype=np.float32)
 
 
-def transcribe(model, audio_path, language=None):
+def transcribe(model, audio_path, language=None, ffmpeg_path=None):
     try:
-        audio = _decode_audio(audio_path)
+        audio = _decode_audio(audio_path, ffmpeg_path=ffmpeg_path)
     except Exception as exc:  # noqa: BLE001 - fall back to the built-in decoder
         print(
             f"[server] ffmpeg decode failed ({exc}); falling back to faster-whisper decoder",
@@ -123,6 +132,7 @@ def main():
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--compute-type", default="float16", dest="compute_type")
     parser.add_argument("--no-simplify", action="store_true")
+    parser.add_argument("--ffmpeg-path", default=None, dest="ffmpeg_path")
     args = parser.parse_args()
 
     # Load model eagerly at startup
@@ -166,7 +176,7 @@ def main():
             language = None
         no_simplify = req.get("no_simplify", args.no_simplify)
 
-        segments, detected_meta = transcribe(model, wav_path, language)
+        segments, detected_meta = transcribe(model, wav_path, language, args.ffmpeg_path)
 
         if not no_simplify:
             if converter is None:

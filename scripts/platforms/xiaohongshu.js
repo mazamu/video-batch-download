@@ -1,5 +1,5 @@
 import { PlatformError, PlatformParser, preferPlatformError } from "./base.js";
-import { itemKey, sleep, settleWithin } from "../utils/common.js";
+import { itemKey, MIN_ANONYMOUS_CHROME_MAJOR, sleep, settleWithin } from "../utils/common.js";
 
 const URL_PATTERNS = [
   /^https?:\/\/(?:www\.)?xiaohongshu\.com\/(?:explore|discovery\/item)\/[\w]+/i,
@@ -143,6 +143,22 @@ export class XiaohongshuParser extends PlatformParser {
         await page.goto(XiaohongshuParser.normalizeUrl(loginRedirect), {
           waitUntil: "domcontentloaded",
           timeout: options.pageTimeoutMs,
+        });
+      }
+
+      // A login wall is deterministic, not a transient miss: the fingerprint was
+      // rejected outright. Report it as an access problem so callers stop
+      // retrying and learn what actually fixes it.
+      if (/\/login\b/i.test(this._pathnameOf(page.url()))) {
+        throw new PlatformError("Xiaohongshu served a login wall instead of the note", {
+          code: "ACCESS_LOGIN_REQUIRED",
+          category: "access",
+          retryable: false,
+          retryScope: "none",
+          userMessage: "小红书对当前浏览器指纹返回了登录页，无法免登录解析这条笔记。",
+          suggestion:
+            `把 playwright 升到内置 Chromium ${MIN_ANONYMOUS_CHROME_MAJOR}+ 的版本（>= 1.64），` +
+            "或使用 --storage-state 提供登录态。",
         });
       }
 
@@ -383,6 +399,14 @@ export class XiaohongshuParser extends PlatformParser {
       if (note && (!noteId || matches(note))) return note;
       return null;
     }, targetNoteId).catch(() => null);
+  }
+
+  _pathnameOf(url) {
+    try {
+      return new URL(url).pathname;
+    } catch {
+      return "";
+    }
   }
 
   _extractLoginRedirect(url) {
