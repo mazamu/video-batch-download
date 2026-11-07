@@ -71,6 +71,21 @@ No manual action is required. A failed media transfer causes the item to return 
 
 The downloader validates the final MP4 before marking an item complete. Missing video tracks (`MEDIA_VIDEO_TRACK_MISSING`) usually mean the platform exposed an audio-only candidate or a stale/partial media URL. Missing audio tracks (`MEDIA_AUDIO_TRACK_MISSING`) usually mean a separated video stream was not paired with its audio stream, or the work has no usable audio for transcription. When every candidate lacks audio, the item fails quickly as non-retryable; use `--no-transcribe` if you only need the video. Keep the same output directory and rerun so the item can be reparsed; if it repeats for one short link, retry with the canonical URL.
 
+Douyin increasingly serves the page player DASH fragments (`media-video-*` plus `media-audio-*`) instead of one progressive MP4. Each track carries its own signature, so a derived audio URL is not interchangeable with the one the player actually requested. Only pair a video candidate with an audio candidate captured from real traffic; if the page never requests audio, the video-only candidate is correctly rejected rather than saved as a silent video.
+
+## Downloaded media is much shorter than the item
+
+`MEDIA_DURATION_MISMATCH` means the candidate resolved to a poster animation, cover clip, or truncated stream rather than the item itself. Platforms host these side by side on the same CDN, so a plausible-looking MP4 is not proof of a correct download. The downloader compares the downloaded duration against the item duration reported by the page or detail API and rejects anything below 60% of it. Douyin exposes that duration on the player even when the detail API does not fire, so a silent `completed` result on a two-second file is no longer possible.
+
+## A share or discovery URL opens a login wall
+
+Xiaohongshu serves `/discovery/item/<id>` and `/note/<id>` share links to some browser fingerprints with a redirect to `/login?redirectPath=...`, which leaves the page with no note data and surfaces `MEDIA_DISCOVERY_FAILED`. Two things matter here: the shared URL is rewritten to `/explore/<id>` before navigation so the note stays reachable anonymously, and the browser context must present a reasonably current desktop Chrome user agent. A stale user agent is the usual cause of the login wall; update `USER_AGENT` in `scripts/utils/common.js` rather than adding a login state.
+
+## Transcription fails with an unexpected `metadata_errors` argument
+
+faster-whisper decodes media through PyAV, and PyAV 19 removed the `metadata_errors` argument faster-whisper still passes, so handing it a file path raises `TypeError: open() got an unexpected keyword argument 'metadata_errors'`. The transcription server decodes with ffmpeg into a float32 mono array before calling the model, which keeps transcription independent of the installed PyAV version. Set `FFMPEG_PATH` if ffmpeg is not on `PATH`.
+
+
 ## Permanent failures
 
 Deleted, private, friends-only, login-only, unsupported image/text notes, and region-restricted works may never become downloadable. They are recorded as `permanent_failure` with structured `error_code` / `user_message` fields and are not retried by `--max-attempts`. Temporary API/rate-limit noise stays retryable and must not demote an earlier permanent content failure. The final JSON summary distinguishes permanent content failures from retryable network or verification failures.

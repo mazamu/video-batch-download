@@ -206,6 +206,31 @@ export async function assertExpectedQuality(filePath, streams, ffmpegPath) {
   }
 }
 
+export async function assertExpectedDuration(filePath, expectedSeconds, ffmpegPath) {
+  const expected = Number(expectedSeconds ?? 0);
+  if (!(expected > 0)) return;
+  const actual = await getVideoInfo(filePath, ffmpegPath);
+  const actualSeconds = Number(actual?.duration_secs ?? 0);
+  if (!(actualSeconds > 0)) return;
+  // Platforms put poster animations, cover clips and recommendation previews on
+  // the same CDN host as the real stream. A candidate that is far shorter than
+  // the item itself is never the item, so reject it instead of reporting a
+  // successful download.
+  if (actualSeconds >= expected * 0.6) return;
+  await fsp.rm(filePath, { force: true }).catch(() => {});
+  throw new ProcessingError(
+    `Downloaded media is ${actualSeconds}s long but the item is ${expected}s`,
+    {
+      code: "MEDIA_DURATION_MISMATCH",
+      category: "media",
+      stage: "download",
+      retryable: true,
+      retryScope: "candidate",
+      userMessage: "下载到的媒体时长明显短于作品本身（多为封面动画或残缺流），已尝试换用其他候选。",
+    },
+  );
+}
+
 export async function mergeStreams(videoPath, audioPath, mergedPath, ffmpegPath) {
   const exe = getFfmpegExecutable(ffmpegPath);
   const args = [

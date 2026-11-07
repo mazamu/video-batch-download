@@ -51,9 +51,44 @@ def load_whisper(model_name: str, device: str, compute_type: str):
     return WhisperModel(model_name, device=device, compute_type=compute_type)
 
 
+def _decode_audio(audio_path, sampling_rate: int = 16000):
+    """Decode media to a float32 mono array using ffmpeg.
+
+    faster-whisper decodes file paths through PyAV, and PyAV 19 removed the
+    `metadata_errors` argument that faster-whisper still passes, so handing it a
+    path raises "open() got an unexpected keyword argument 'metadata_errors'".
+    Decoding here keeps the skill working on any PyAV version and matches the
+    sample rate faster-whisper expects internally.
+    """
+    import subprocess
+
+    import numpy as np
+
+    exe = os.environ.get("FFMPEG_PATH", "ffmpeg")
+    cmd = [
+        exe, "-nostdin", "-v", "error",
+        "-i", str(audio_path),
+        "-f", "f32le", "-ac", "1", "-ar", str(sampling_rate), "-",
+    ]
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if proc.returncode != 0 or not proc.stdout:
+        message = proc.stderr.decode("utf-8", "ignore").strip() or "ffmpeg produced no audio"
+        raise RuntimeError(message)
+    return np.frombuffer(proc.stdout, dtype=np.float32)
+
+
 def transcribe(model, audio_path, language=None):
+    try:
+        audio = _decode_audio(audio_path)
+    except Exception as exc:  # noqa: BLE001 - fall back to the built-in decoder
+        print(
+            f"[server] ffmpeg decode failed ({exc}); falling back to faster-whisper decoder",
+            file=sys.stderr,
+            flush=True,
+        )
+        audio = audio_path
     seg_iter, detected = model.transcribe(
-        audio_path, language=language, beam_size=5, vad_filter=False
+        audio, language=language, beam_size=5, vad_filter=False
     )
     segments = []
     for s in seg_iter:

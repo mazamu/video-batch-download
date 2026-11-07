@@ -7,8 +7,8 @@ const RETRY_DELAYS_MS = [2_000, 5_000, 10_000, 20_000, 40_000, 60_000, 90_000, 1
 const MIN_VALID_FILE_SIZE = 1_024;
 
 export const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36";
 
 export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

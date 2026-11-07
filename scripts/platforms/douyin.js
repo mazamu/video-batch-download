@@ -111,6 +111,16 @@ export class DouyinParser extends PlatformParser {
       const finalUrl = page.url();
       const pageTitle = sanitizeName(await page.title().catch(() => ""));
       const bodyText = await page.locator("body").innerText({ timeout: 3_000 }).catch(() => "");
+      // The detail API does not always fire for anonymous visits. The player
+      // still knows the real item duration, which downstream validation needs
+      // to reject poster animations and truncated streams.
+      const pageDuration = await page
+        .evaluate(() => {
+          const video = document.querySelector("video");
+          const value = Number(video?.duration ?? 0);
+          return Number.isFinite(value) && value > 0 ? value : null;
+        })
+        .catch(() => null);
 
       for (const candidate of await this._collectRuntimeMediaCandidates(page)) {
         addCandidate(candidate);
@@ -188,7 +198,7 @@ export class DouyinParser extends PlatformParser {
         author: detailMeta?.author ?? { nickname: null, uid: null, url: null },
         description: detailMeta?.description ?? null,
         postTime: detailMeta?.post_time ?? null,
-        duration: detailMeta?.duration ?? null,
+        duration: detailMeta?.duration ?? pageDuration ?? null,
         statistics: detailMeta?.statistics ?? {},
         referer: "https://www.douyin.com/",
         availableStreams,

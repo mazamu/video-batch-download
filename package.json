@@ -1,6 +1,6 @@
 {
   "name": "video-batch-download",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "private": true,
   "type": "module",
   "description": "Pluggable multi-platform video download and local transcription",
@@ -10,7 +10,7 @@
     "test": "node --test"
   },
   "dependencies": {
-    "playwright": "^1.53.0"
+    "playwright": "^1.64.0"
   },
   "engines": {
     "node": ">=20"

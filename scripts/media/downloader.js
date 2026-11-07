@@ -8,7 +8,12 @@ import { ProcessingError, normalizeError, sanitizeCandidateFailure } from "../co
 import { QUALITY_SELECTION_VERSION } from "../core/policies.js";
 import { getTempDir } from "../core/resume.js";
 import { isValidMp4, itemKey, USER_AGENT } from "../utils/common.js";
-import { assertExpectedQuality, assertPlayableVideo, mergeStreams } from "./ffmpeg.js";
+import {
+  assertExpectedDuration,
+  assertExpectedQuality,
+  assertPlayableVideo,
+  mergeStreams,
+} from "./ffmpeg.js";
 
 const activeDownloadControllers = new Set();
 
@@ -164,6 +169,7 @@ async function downloadStreamSet(parsed, streams, alternativeIndex, outputDir, t
     const downloaded = await downloadSingleStream(streams[0], mediaKey, "", outputDir, timeoutMs);
     const tracks = await assertPlayableVideo(downloaded.filePath, ffmpegPath, "Downloaded video", { requireAudio });
     await assertExpectedQuality(downloaded.filePath, streams, ffmpegPath);
+    await assertExpectedDuration(downloaded.filePath, parsed.duration, ffmpegPath);
     return { ...downloaded, mediaHasAudio: mediaHasAudioFromTracks(tracks) };
   }
 
@@ -195,6 +201,7 @@ async function downloadStreamSet(parsed, streams, alternativeIndex, outputDir, t
     await mergeStreams(videoFile.filePath, audioFile.filePath, mergedPath, ffmpegPath);
     const tracks = await assertPlayableVideo(mergedPath, ffmpegPath, "Merged video", { requireAudio });
     await assertExpectedQuality(mergedPath, streams, ffmpegPath);
+    await assertExpectedDuration(mergedPath, parsed.duration, ffmpegPath);
 
     await fsp.rm(videoFile.filePath, { force: true });
     await fsp.rm(audioFile.filePath, { force: true });

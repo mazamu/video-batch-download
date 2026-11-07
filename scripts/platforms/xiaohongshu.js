@@ -34,6 +34,22 @@ export class XiaohongshuParser extends PlatformParser {
     return URL_PATTERNS.some((pattern) => pattern.test(url));
   }
 
+  // Share links arrive as /discovery/item/<id> or /note/<id>. Both routes are
+  // walled behind a login redirect for some clients, while /explore/<id> keeps
+  // the same note reachable anonymously. Normalise before navigating so the
+  // session token in the query string is preserved.
+  static normalizeUrl(url) {
+    try {
+      const parsed = new URL(url);
+      const match = parsed.pathname.match(/^\/(?:discovery\/item|note)\/([\w]+)/);
+      if (!match) return url;
+      parsed.pathname = `/explore/${match[1]}`;
+      return parsed.toString();
+    } catch {
+      return url;
+    }
+  }
+
   async parse(browserManager, url, options) {
     const browser = await browserManager.start();
     const contextOptions = XiaohongshuParser.getBrowserContextOptions(browserManager, options);
@@ -116,14 +132,15 @@ export class XiaohongshuParser extends PlatformParser {
     page.on("response", handleResponse);
 
     try {
-      await page.goto(url, {
+      const targetUrl = XiaohongshuParser.normalizeUrl(url);
+      await page.goto(targetUrl, {
         waitUntil: "domcontentloaded",
         timeout: options.pageTimeoutMs,
       });
 
       const loginRedirect = this._extractLoginRedirect(page.url());
       if (loginRedirect && XiaohongshuParser.matchesUrl(loginRedirect)) {
-        await page.goto(loginRedirect, {
+        await page.goto(XiaohongshuParser.normalizeUrl(loginRedirect), {
           waitUntil: "domcontentloaded",
           timeout: options.pageTimeoutMs,
         });
